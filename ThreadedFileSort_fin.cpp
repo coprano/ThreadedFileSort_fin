@@ -1,18 +1,18 @@
 ﻿#include <iostream>
 #include <random>
 #include <io.h>
-
+#include <string>
 
 using namespace std;
 
 //////////////////////////////////////////////////////////////////////////
 const int maxN = 1000;                  //макс.значение элементов
-const int SmallFileSize = 8;            //размер маленького файла в МегаБайтах
-const int BigFileSize = 1;              //размер большого файла в МегаБайтах
+const int SmallFileSize = 4;            //размер маленького файла в МегаБайтах
+const int BigFileSize = 10;              //размер большого файла в МегаБайтах
 //////////////////////////////////////////////////////////////////////////
 
-
-
+int BiGFileCount = int(ceil(BigFileSize * 1024 / sizeof(int32_t)));
+int SmallFileCount = int(ceil(SmallFileSize * 1024 / sizeof(int32_t)));
 
 /// <summary>
 /// Создает файл размера BigFileSize [МБ]
@@ -29,10 +29,9 @@ int create_big_file(const char* fname) {
     errno_t err = fopen_s(&f, fname, "wb+");
 
     if (f == NULL) {
-        cout << "create_big_file: err opening file. code:" << err << endl;
+        cout << "create_big_file: err opening file " << fname << " code:" << err << endl;
         return -1;
     }
-    int BiGFileCount = int(ceil(BigFileSize * 1024 / sizeof(int32_t)));
     for (int i = 0; i < BiGFileCount; i++)
     {
         int32_t a = dist(rng);
@@ -52,8 +51,10 @@ int show_file(const char* fname) {
     FILE* f;
     errno_t err = fopen_s(&f, fname, "rb+");
 
-    if (f == NULL)
+    if (f == NULL) {
+        cout << "show_file: err opening file " << fname << " code:" << err << endl;
         return -1;
+    }
 
     int a;
     while (fread(&a, sizeof(int32_t), 1, f) != NULL) {
@@ -74,7 +75,7 @@ int sort(const char* fname)
     FILE* f;
     errno_t err = fopen_s(&f, fname, "rb+");
     if (f == NULL) {
-        cout << "sort: err opening file. code:" << err << endl;
+        cout << "sort: err opening file " << fname << " code:" << err << endl;
         return -1;
     }
 
@@ -130,14 +131,12 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
 
 
     if (f1 == NULL or f2 == NULL or fres == NULL) {
-        cout << "create_big_file: err opening file. codes:" << errf1 << ":" << errf2 << ":" << errfres << endl;
+        cout << "merge_two_files: err opening files"<< f1name << " " << f2name << " " << fresname << " codes:" << errf1 << ":" << errf2 << ":" << errfres << endl;
         return -1;
     }
     int cnt = 0;
     bool fin = false;
     int32_t n1, n2;
-    int f1pos = 0;
-    int f2pos = 0;
     auto s1 = fread(&n1, sizeof(int32_t), 1, f1);
     auto s2 = fread(&n2, sizeof(int32_t), 1, f2);
     while (!fin) {
@@ -174,7 +173,7 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
         }
         else if (s1 == 0 and s2 == 0) {
             fin = true;
-            cout << "merge fin" << endl;
+            //cout << "merge fin. proccessed " << cnt << " elements" << endl;
         }
 
     }
@@ -186,6 +185,55 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
     return 0;
 };
 
+/// <summary>
+/// Разбивает большой файл на много маленьких
+/// </summary>
+/// <param name="fname">название большого файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int SplitBigFile(const char* fname) {
+    FILE* f;
+    errno_t err = fopen_s(&f, fname, "rb+");
+
+    if (f == NULL) {
+        cout << "SplitBigFile: err opening file " << fname << " code:" << err << endl;
+        return -1;
+    }
+    
+    if (SmallFileSize > BigFileSize) {
+        cout << "SplitBigFile err. SmallFileSize > BigFileSize" << endl;
+    }
+
+    int fcount = int(ceil((float)BigFileSize / (float)SmallFileSize));
+
+    int32_t n;
+    auto s1 = fread(&n, sizeof(int32_t), 1, f);
+    while (fcount > 0) {
+        FILE* fcurr;
+        string fcurr_name = (string)fname + "_part_" + to_string(fcount);
+        errno_t err = fopen_s(&fcurr, fcurr_name.c_str(), "wb+");
+        if (fcurr == NULL) {
+            cout << "sort: err creating file " << fcurr_name <<" code:" << err << endl;
+            return -1;
+        }
+
+        int fcurr_cnt = 0;
+        while (s1 != 0 and fcurr_cnt < SmallFileCount) {
+            fwrite(&n, sizeof(int32_t), 1, fcurr);
+            s1 = fread(&n, sizeof(int32_t), 1, f);
+            fcurr_cnt++;
+        }
+        cout << fcurr_name << ":wrote " << fcurr_cnt << " entities." << endl;
+
+        fclose(fcurr);
+        fcount--;
+    }
+    
+
+    fclose(f);
+    return 0;
+}
+
 int main()
 {
     setlocale(LC_ALL, "RUS");
@@ -193,15 +241,14 @@ int main()
     const char* FileName2 = "File2";
     const char* FileNameRes = "FileRes";
 
-    create_big_file(FileName1);
-    create_big_file(FileName2);
-    sort(FileName1);
-    sort(FileName2);
+    create_big_file(FileNameRes);
+    //create_big_file(FileName2);
+    //sort(FileName1);
+    //sort(FileName2);
 
-    merge_two_files(FileName1, FileName2, FileNameRes);
-    show_file(FileName2);
-    cout << endl << endl;
-    show_file(FileNameRes);
-
+    //merge_two_files(FileName1, FileName2, FileNameRes);
+    //cout << endl << endl;
+    //show_file(FileNameRes);
+    SplitBigFile(FileNameRes);
     return 0;
 }
