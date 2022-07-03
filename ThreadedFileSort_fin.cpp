@@ -118,53 +118,53 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
         cout << "create_big_file: err opening file. codes:" << errf1 << ":" << errf2 << ":" << errfres << endl;
         return -1;
     }
+    int cnt = 0;
     bool fin = false;
-    int n1, n2;
+    int32_t n1, n2;
+    int f1pos = 0;
+    int f2pos = 0;
+    auto s1 = fread(&n1, sizeof(int32_t), 1, f1);
+    auto s2 = fread(&n2, sizeof(int32_t), 1, f2);
     while (!fin) {
-        auto s1 = fread(&n1, sizeof(int32_t), 1, f1);
-        auto s2 = fread(&n2, sizeof(int32_t), 1, f2);
-        //если в обоих файлах есть числа
-        if (s1 != NULL and s2!=NULL) {
+        if (s1 != 0 and s2 != 0) {
             if (n1 > n2) {
                 fwrite(&n2, sizeof(int32_t), 1, fres);
-                fseek(f2, sizeof(int32_t), SEEK_CUR);
-                cout << "case1_1" << endl;
+                s2 = fread(&n2, sizeof(int32_t), 1, f2);
+                cnt++;
             }
             else if (n1 < n2) {
                 fwrite(&n1, sizeof(int32_t), 1, fres);
-                fseek(f1, sizeof(int32_t), SEEK_CUR);
-                cout << "case1_2" << endl;
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
             }
             else if (n1 == n2) {
                 fwrite(&n1, sizeof(int32_t), 1, fres);
-                fseek(f1, sizeof(int32_t), SEEK_CUR);
-                cout << "case1_3" << endl;
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
             }
-            else cout << "err in merge_two_files idk why" << endl;
         }
-        else if (s1 == NULL and s2 != NULL) {
-            while (fread(&n2, sizeof(int32_t), 1, f2) != NULL) {
+        else if (s1 == 0 and s2 != 0) {
+            while (s2 != 0) {
                 fwrite(&n2, sizeof(int32_t), 1, fres);
-                fseek(f2, sizeof(int32_t), SEEK_CUR);
-                fflush(f2);
-                cout << "case2 n1:n2 " << n1 << " " << n2 << endl;
+                s2 = fread(&n2, sizeof(int32_t), 1, f2);
+                cnt++;
             }
         }
-        else if (s1 != NULL and s2 == NULL) {
-            while (fread(&n1, sizeof(int32_t), 1, f1) != NULL) {
+        else if (s1 != 0 and s2 == 0){
+            while (s1 != 0) {
                 fwrite(&n1, sizeof(int32_t), 1, fres);
-                fseek(f1, sizeof(int32_t), SEEK_CUR);
-                fflush(f1);
-                cout << "case3 n1:n2 " << n1 << " " << n2 << endl;
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
             }
         }
-        if (s1 == NULL and s2 == NULL) {
+        else if (s1 == 0 and s2 == 0) {
             fin = true;
-            cout << "fin" << endl;
+            cout << "merge fin" << endl;
         }
+
     }
-
-
+    fclose(f1);
+    fclose(f2);
     remove(f1name);
     remove(f2name);
     fclose(fres);
@@ -188,6 +188,6 @@ int main()
     cout << endl << endl;
     show_file(FileNameRes);
 
-
+   // system("pause");
     return 0;
 }

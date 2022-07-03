@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # Files created 
 /File*
+/.vscode
+*.exe
