@@ -6,23 +6,27 @@
 using namespace std;
 
 //////////////////////////////////////////////////////////////////////////
-const char* FileName = "BigFile";   //название файла
 const int maxN = 1000;                  //макс.значение элементов
-const int SmallFileSize = 8;            //размер маленького файла в мегабайтах
-const int BigFileSize = 1;            //размер большого файла в мегабайтах
+const int SmallFileSize = 8;            //размер маленького файла в МегаБайтах
+const int BigFileSize = 1;              //размер большого файла в МегаБайтах
 //////////////////////////////////////////////////////////////////////////
 
 
 
 
-/*создает файл, заполняет его, закрывает файл*/
-int create_big_file(const char* FName) {
+/// <summary>
+/// Создает файл размера BigFileSize [МБ]
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int create_big_file(const char* fname) {
     random_device dev;
     mt19937 rng(dev());
     uniform_int_distribution<mt19937::result_type> dist(0, maxN);
 
     FILE* f;
-    errno_t err = fopen_s(&f, FName, "wb+");
+    errno_t err = fopen_s(&f, fname, "wb+");
 
     if (f == NULL) {
         cout << "create_big_file: err opening file. code:" << err << endl;
