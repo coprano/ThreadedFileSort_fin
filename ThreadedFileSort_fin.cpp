@@ -38,7 +38,12 @@ int create_big_file(const char* FName) {
     return 0;
 }
 
-/*выводит на экран все числа из файла размера BigFile*/
+/// <summary>
+/// Выводит на экран все числа из бинарного файла
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
 int show_file(const char* fname) {
     FILE* f;
     errno_t err = fopen_s(&f, fname, "rb+");
@@ -54,11 +59,14 @@ int show_file(const char* fname) {
     return 0;
 };
 
-// сортировка элементов массива в файле
-// fname - имя файла
+/// <summary>
+/// bubble sort for binary file
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
 int sort(const char* fname)
 {
-    // нужно открыть файл и прочитать количество элементов
     FILE* f;
     errno_t err = fopen_s(&f, fname, "rb+");
     if (f == NULL) {
@@ -69,40 +77,43 @@ int sort(const char* fname)
     int n;
     n = _filelength(_fileno(f)) / sizeof(int32_t);
     int32_t* tmp = new int32_t[1];
-    // пока не равно количеству елементов
     for (int i = 0; i <= n; i++)
     {
 
         for (int j = 0; j < n - i; j++)
         {
-
             int  arr;
             int  arrNext;
-            fseek(f, sizeof(int32_t) * (j), SEEK_SET); // очередной элемент
-            fread(&arr, sizeof(int32_t), 1, f); // считываем очередной элемент
-            fseek(f, sizeof(int32_t) * (j + 1), SEEK_SET); // следующий после очередного
-            fread(&arrNext, sizeof(int32_t), 1, f); // считываем очередной элемент
+            fseek(f, sizeof(int32_t) * (j), SEEK_SET);
+            fread(&arr, sizeof(int32_t), 1, f);
+            fseek(f, sizeof(int32_t) * (j + 1), SEEK_SET);
+            fread(&arrNext, sizeof(int32_t), 1, f);
             fflush(f);
             if (arr > arrNext)
             {
-                // правого, то меняем их местами
                 memcpy(tmp, &arr, sizeof(int32_t));
                 arr = arrNext;
                 arrNext = *tmp;
-                fseek(f, sizeof(int32_t) * (j), SEEK_SET); // позиция первого элемента
+                fseek(f, sizeof(int32_t) * (j), SEEK_SET);
                 fwrite(&arr, sizeof(int), 1, f);
 
                 fseek(f, sizeof(int32_t) * (j + 1), SEEK_SET);
                 fwrite(&arrNext, sizeof(int32_t), 1, f);
-
-
-            };
+          };
         };
     };
     fclose(f);
     return 0;
 }
 
+/// <summary>
+/// Собирает два отсортированных файла в один
+/// </summary>
+/// <param name="f1name">название первого маленького файла</param>
+/// <param name="f2name">название второго маленького файла</param>
+/// <param name="fresname">название итогового файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
 int merge_two_files(const char* f1name, const char* f2name, const char* fresname) {
     FILE* f1;
     errno_t errf1 = fopen_s(&f1, f1name, "rb+");
@@ -188,6 +199,5 @@ int main()
     cout << endl << endl;
     show_file(FileNameRes);
 
-   // system("pause");
     return 0;
 }
