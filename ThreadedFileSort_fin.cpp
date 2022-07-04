@@ -33,10 +33,12 @@ queue <string> q_sorted;//очередь из сортированных фай�
 int thread_count = 0;           //количество потоков
 int thread_work = 0;            //количество рабочих потоков
 
-bool q_locked = false;
+bool q_unlocked = true;
 bool q_sorted_locked = false;   //заблокирована ли очередь?
 int q_count = 0;                //количество файлов в очереди
 int q_sorted_count = 0;         //количество файлов в сортированной очереди
+
+int PartCnt = 0;
 /////////////////////////////////////////////////////////////////////////
 
 /// <summary>
@@ -231,7 +233,7 @@ int SplitBigFile(const char* fname) {
     }
 
     int fcount = int(ceil((float)BigFileSize / (float)SmallFileSize));
-
+    PartCnt = fcount;
     int32_t n;
     auto s1 = fread(&n, sizeof(int32_t), 1, f);
     while (fcount > 0) {
@@ -254,7 +256,7 @@ int SplitBigFile(const char* fname) {
         fclose(fcurr);
         fcount--;
     };
-    
+
 
     fclose(f);
     remove(fname);
@@ -262,16 +264,30 @@ int SplitBigFile(const char* fname) {
 }
 
 mutex mtx;
+condition_variable cv;
+
 void MultithreadedSorter() {
     while(true){
         if (q_count > 0) {
-            mtx.lock();
+
+            unique_lock<mutex> ul(mtx);
+            cv.wait(ul, [&] {return q_unlocked; });
+            q_unlocked = false;
+            if (q_count > 0)
+                q_count--;
+            else {
+                q_unlocked = true;
+                ul.unlock();
+                cv.notify_all();
+                break;
+            }
             string s = q.front();
             cout << s << " is being sorted" << endl;
-            q_count--;
             q.pop();
             this_thread::sleep_for(chrono::milliseconds(1));
-            mtx.unlock();
+            q_unlocked = true;
+            ul.unlock();
+            cv.notify_one();
             FileSort(s.c_str());
             q_sorted.push(s);
             q_sorted_count++;
@@ -279,10 +295,43 @@ void MultithreadedSorter() {
         }
         else
         {
+            cv.notify_all();
             break;
         }
     }
 }
+
+void MultithreadedMerge() {
+    while (true) {
+        if (q_sorted_locked == false and q_sorted_count > 1)
+        {
+
+            mtx.lock();
+            q_sorted_locked = true;
+            string s1 = q_sorted.front();
+            q_sorted.pop();
+            string s2 = q_sorted.front();
+            q_sorted.pop();
+            PartCnt++;
+            q_sorted_count--;
+            string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+            q_sorted_locked = false;
+            mtx.unlock();
+            merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
+            q_sorted.push(s3.c_str());
+        }
+        else if (q_sorted_locked == true and q_sorted_count > 1)
+        {
+            this_thread::sleep_for(chrono::milliseconds(10));
+        }
+        else if (q_sorted_count == 1)
+        {
+
+            break;
+        }
+    }
+};
+
 int main()
 {
     setlocale(LC_ALL, "RUS");
@@ -304,18 +353,36 @@ int main()
             q_count++;
         };
     }
-    
-    //многопоточная сортировка
+
+    //многопоточная сортировка файликов
     for (int i = 0; i < num_threads - 1; i++) {
         cout << "thread " << i << " started" << endl;
         threads[i] = thread(MultithreadedSorter);
     };
-    MultithreadedSorter();
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
+    MultithreadedSorter();
+    cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
 
+    this_thread::sleep_for(chrono::milliseconds(100));
 
-    cout << "fin" << endl;
+    ////многопоточный merge файликов
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    cout << "thread " << i << " started" << endl;
+    //    threads[i] = thread(MultithreadedMerge);
+    //};
+
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    threads[i].join();
+    //};
+
+    //for (const auto& entry : fs::directory_iterator("./")) {
+    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+    //        cout << entry.path().filename().string() << endl;
+    //        show_file(entry.path().filename().string().c_str());
+    //    };
+
+    //};
     return 0;
 }
