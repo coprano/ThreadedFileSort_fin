@@ -6,6 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <filesystem>
+#include <cmath>  
 
 namespace fs = std::filesystem;
 using namespace std;
@@ -14,15 +15,15 @@ using namespace std;
 
 //это можно поменять, если хочется
 const int maxN = 1000;                  //макс.значение элементов
-const int SmallFileSize = 1;            //размер маленького файла в Килобайтах
-const int BigFileSize = 10;             //размер большого файла в Килобайтах
+unsigned long SmallFileSize = 200;            //размер маленького файла в МегаБайтах
+unsigned long BigFileSize = 4096;           //размер большого файла в МегаБайтах
 const int req_num_treads = 8;          //необходимое колво потоков
 string FileNameBase = "File";           //Основа для названия файлов
 //////////////////////////////////////////////////////////////////////////
 
-//менять только если нужно поменять размеры файлов. Сейчас КБ.
-int BiGFileCount = int(ceil(BigFileSize * 1024 / sizeof(int32_t)));
-int SmallFileCount = int(ceil(SmallFileSize * 1024 / sizeof(int32_t)));
+//менять только если нужно поменять размерности файлов (МБ->КБ и т.д.)
+unsigned long long BiGFileCount = (unsigned long long)BigFileSize * 1024 * 1024 / sizeof(int32_t);
+unsigned long long SmallFileCount = (unsigned long long)SmallFileSize * 1024 * 1024 / sizeof(int32_t);
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -301,88 +302,7 @@ void MultithreadedSorter() {
         }
     }
 }
-//void MultithreadedMerge() {
-//    while (true) {
-//        if (q_sorted_locked == false and bool(q_sorted_count - how_many_working) == true)
-//        {
-//            condition_variable cv;
-//            unique_lock<mutex>ul(mtx);
-//            cout << (!q_sorted_locked and bool(q_sorted_count - how_many_working)) << endl;
-//            cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
-//            q_sorted_locked = true;
-//            q_sorted_count--;
-//            how_many_working++;
-//            if ((how_many_working == 0 and q_sorted_count == 1) or q_sorted_count == 0) { cv.notify_one(); break; }
-//            else if (q_sorted_count - how_many_working <= 0) { ul.unlock(); }
-//            else {
-//
-//                //this_thread::sleep_for(chrono::milliseconds(10));
-//                //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
-//                string s1 = q_sorted.front();
-//                q_sorted.pop();
-//                string s2 = q_sorted.front();
-//                q_sorted.pop();
-//                PartCnt++;
-//
-//                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
-//                q_sorted_locked = false;
-//                ul.unlock();
-//                cv.notify_one();
-//                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
-//                q_sorted.push(s3.c_str());
-//                how_many_working--;
-//            }
-//        }
-//        else if (q_sorted_count == 1 or q_sorted_count == 0)
-//        {
-//            cv.notify_one();
-//            break;
-//        }
-//    }
-//};
-//void MultithreadedMerge() {
-//    while (true) {
-//        if (q_sorted_locked == false and q_sorted_count > 1)
-//        {
-//            cout << (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)) << endl;
-//            condition_variable cv;
-//            unique_lock <mutex> ul(mtx);
-//            cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
-//            how_many_working++;
-//            q_sorted_locked = true;
-//            cout << "imin" << endl;
-//            q_sorted_count--;
-//            //this_thread::sleep_for(chrono::milliseconds(10));
-//            //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
-//            if (!(q_sorted_count > 1 and (q_sorted_count - how_many_working > 0))) { ul.unlock(); cv.notify_one(); }
-//            else {
-//                string s1 = q_sorted.front();
-//                q_sorted.pop();
-//                string s2 = q_sorted.front();
-//                q_sorted.pop();
-//                PartCnt++;
-//                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
-//                q_sorted_locked = false;
-//                ul.unlock();
-//                cv.notify_one();
-//                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
-//                ul.lock();
-//                q_sorted.push(s3.c_str());
-//                ul.unlock();
-//                how_many_working--;
-//            }
-//        }
-//        else if (q_sorted_locked == true and q_sorted_count > 1)
-//        {
-//            this_thread::sleep_for(chrono::milliseconds(10));
-//        }
-//        else if (q_sorted_count == 1)
-//        {
-//
-//            break;
-//        }
-//    }
-//};
+
 
 void MultithreadedMerge() {
     while (true) {
@@ -424,53 +344,56 @@ void remover() {
 int main()
 {
     setlocale(LC_ALL, "RUS");
-    remover();
-    CreateBigFile(FileNameBase.c_str());
-    SplitBigFile(FileNameBase.c_str());
+    //remover();
+    //CreateBigFile(FileNameBase.c_str());
+    //SplitBigFile(FileNameBase.c_str());
 
-    int max_threads = thread::hardware_concurrency();
-    int num_threads = min(max_threads, req_num_treads);
-    cout << "num)_threrasda:" << num_threads << endl;
-    vector<thread> threads(num_threads - 1);
+    //int max_threads = thread::hardware_concurrency();
+    //int num_threads = min(max_threads, req_num_treads);
+    //cout << "num)_threrasda:" << num_threads << endl;
+    //vector<thread> threads(num_threads - 1);
 
 
-    cout << "\n\npcnt:" << PartCnt << endl;
-    for (const auto& entry : fs::directory_iterator("./")) {
-        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
-            //cout << entry.path().filename().string() << endl;
-            q.push(entry.path().filename().string());
-            q_count++;
-        };
-    }
+    //cout << "\n\npcnt:" << PartCnt << endl;
+    //for (const auto& entry : fs::directory_iterator("./")) {
+    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+    //        //cout << entry.path().filename().string() << endl;
+    //        q.push(entry.path().filename().string());
+    //        q_count++;
+    //    };
+    //}
 
-    //многопоточная сортировка файликов
-    for (int i = 0; i < num_threads - 1; i++) {
-        cout << "thread " << i << " started" << endl;
-        threads[i] = thread(MultithreadedSorter);
-    };
-    for (int i = 0; i < num_threads - 1; i++) {
-        threads[i].join();
-    };
-    MultithreadedSorter();
-    cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
+    ////многопоточная сортировка файликов
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    cout << "thread " << i << " started" << endl;
+    //    threads[i] = thread(MultithreadedSorter);
+    //};
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    threads[i].join();
+    //};
+    //MultithreadedSorter();
+    //cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
 
-    //многопоточный merge файликов
-    for (int i = 0; i < num_threads - 1; i++) {
-        cout << "thread " << i << " started" << endl;
-        threads[i] = thread(MultithreadedMerge);
-    };
-    MultithreadedMerge();
-    for (int i = 0; i < num_threads - 1; i++) {
-        threads[i].join();
-    };
+    ////многопоточный merge файликов
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    cout << "thread " << i << " started" << endl;
+    //    threads[i] = thread(MultithreadedMerge);
+    //};
+    //MultithreadedMerge();
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    threads[i].join();
+    //};
 
-    for (const auto& entry : fs::directory_iterator("./")) {
-        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
-            cout << entry.path().filename().string() << endl;
-            show_file(entry.path().filename().string().c_str());
-        };
+    //for (const auto& entry : fs::directory_iterator("./")) {
+    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+    //        cout << entry.path().filename().string() << endl;
+    //        show_file(entry.path().filename().string().c_str());
+    //    };
 
-    };
-    
+    //};
+    //
+
+
+    cout << BiGFileCount << " " << SmallFileCount << endl;
     return 0;
 }
