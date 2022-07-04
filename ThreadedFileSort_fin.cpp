@@ -23,8 +23,8 @@ using namespace std;
 
 //это можно поменять, если хочется
 const int maxN = 1000;                  //макс.значение элементов
-unsigned long SmallFileSize = 6;            //размер маленького файла в МегаБайтах
-unsigned long BigFileSize = 40;           //размер большого файла в МегаБайтах
+unsigned long SmallFileSize = 10;            //размер маленького файла в МегаБайтах
+unsigned long BigFileSize = 100;           //размер большого файла в МегаБайтах
 const int req_num_threads = 8;          //необходимое колво потоков
 string FileNameBase = "File";           //Основа для названия файлов
 //////////////////////////////////////////////////////////////////////////
@@ -95,11 +95,8 @@ int show_file(const char* fname) {
     }
 
     int a;
-    //TODO удалить условие на cnt при выводе
-    int cnt = 10;
-    while (fread(&a, sizeof(int32_t), 1, f) != 0 and cnt > 0) {
+    while (fread(&a, sizeof(int32_t), 1, f) != 0) {
         cout << a << " ";
-        cnt--;
     };
     fclose(f);
     return 0;
@@ -383,15 +380,21 @@ int main()
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
-    //FileSort(q.front().c_str());
 
-    //for (const auto& entry : fs::directory_iterator("./")) {
-    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
-    //        cout << entry.path().filename().string() << endl;
-    //        show_file(entry.path().filename().string().c_str());
-    //    };
-    //};
+    for (int i = 0; i < num_threads - 1; i++) {
+        cout << "thread " << i << " started" << endl;
+        threads[i] = thread(MultithreadedMerge);
+    };
+    for (int i = 0; i < num_threads - 1; i++) {
+        threads[i].join();
+    };
 
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            //cout << entry.path().filename().string() << endl;
+            show_file(entry.path().filename().string().c_str());
+        };
+    };
 
     double t = (double)(clock() - start) / CLOCKS_PER_SEC;
     cout << "\nTime taken (seconds):\n\t\n\n" << t;
