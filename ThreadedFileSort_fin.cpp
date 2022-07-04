@@ -451,7 +451,7 @@ int main()
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
-
+    MultithreadedSorter();
     cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
 
     //многопоточный merge файликов
@@ -459,7 +459,7 @@ int main()
         cout << "thread " << i << " started" << endl;
         threads[i] = thread(MultithreadedMerge);
     };
-
+    MultithreadedMerge();
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
