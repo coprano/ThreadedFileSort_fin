@@ -1,0 +1,441 @@
+#include <iostream>
+#include <random>
+#include <io.h>
+#include <string>
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <filesystem>
+#include <condition_variable>
+#include <algorithm>
+
+namespace fs = std::filesystem;
+using namespace std;
+
+//////////////////////////////////////////////////////////////////////////
+
+//это можно поменять, если хочется
+const int maxN = 1000;                  //макс.значение элементов
+const int SmallFileSize = 100;            //размер маленького файла в КилоБайтах
+const int BigFileSize = 1000;             //размер большого файла в КилоБайтах
+const int req_num_treads = 8;          //необходимое колво потоков
+string FileNameBase = "File";           //Основа для названия файлов
+//////////////////////////////////////////////////////////////////////////
+
+//менять только если нужно поменять размеры файлов. Сейчас КБ.
+int BiGFileCount = int(ceil(BigFileSize * 1024 / sizeof(int32_t)));
+int SmallFileCount = int(ceil(SmallFileSize * 1024 / sizeof(int32_t)));
+
+/////////////////////////////////////////////////////////////////////////
+
+//это не стоит трогать, можно запихнуть в класс, если очень хочется
+queue <string> q;//очередь из просто файлов
+queue <string> q_sorted;//очередь из сортированных файлов
+
+int thread_count = 0;           //количество потоков
+int thread_work = 0;            //количество рабочих потоков
+
+bool q_unlocked = true;
+bool q_sorted_locked = false;   //заблокирована ли очередь?
+int q_count = 0;                //количество файлов в очереди
+int q_sorted_count = 0;         //количество файлов в сортированной очереди
+
+int how_many_working = 0;
+int PartCnt = 0;
+/////////////////////////////////////////////////////////////////////////
+
+mutex mtx;
+condition_variable cv;
+/// <summary>
+/// Создает файл размера BigFileSize [МБ]
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int CreateBigFile(string fname) {
+    random_device dev;
+    mt19937 rng(dev());
+    uniform_int_distribution<mt19937::result_type> dist(0, maxN);
+
+    FILE* f;
+    errno_t err = fopen_s(&f, fname.c_str(), "wb");
+
+    if (f == NULL) {
+        cout << "create_big_file: err opening file " << fname << " code:" << err << endl;
+        return -1;
+    }
+    for (int i = 0; i < BiGFileCount; i++)
+    {
+        int32_t a = dist(rng);
+        fwrite(&a, sizeof(int32_t), 1, f);
+    };
+    fclose(f);
+    return 0;
+}
+
+/// <summary>
+/// Выводит на экран все числа из бинарного файла
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int show_file(string fname) {
+    FILE* f;
+    errno_t err = fopen_s(&f, fname.c_str(), "rb");
+
+    if (f == NULL) {
+        cout << "show_file: err opening file " << fname << " code:" << err << endl;
+        return -1;
+    }
+
+    int a;
+    while (fread(&a, sizeof(int32_t), 1, f) != NULL) {
+        cout << a << " ";
+    };
+    fclose(f);
+    return 0;
+};
+
+/// <summary>
+/// bubble sort for binary file
+/// </summary>
+/// <param name="fname">название файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int FileSort(string fname)
+{
+    FILE* f;
+    errno_t err = fopen_s(&f, fname.c_str(), "rb");
+    if (f == NULL) {
+        cout << "sort: err opening file " << fname << " code:" << err << endl;
+        return -1;
+    }
+    else{
+        int n;
+        n = _filelength(_fileno(f)) / sizeof(int32_t);
+        vector <int32_t> vec;
+        auto it = vec.begin();
+        int32_t elem;
+        cout << "imhere!" << endl;
+        for (int i = 1; i <= n; i++)
+        {
+
+        //fseek(f, sizeof(int32_t) * (i), SEEK_SET);
+        fread(&elem, sizeof(int32_t), 1, f);
+        //fflush(f);
+
+        it = vec.insert(it,elem);
+        //cout << int(*it) << endl;
+        //cout << "sorting... " << vec.size() << endl;
+        };
+        cout << "vec len:" << vec.size() << endl;
+        sort(vec.begin(), vec.end());
+        cout << "vec sorted!" << vec.size()<<endl;
+        fclose(f);
+        remove(fname.c_str());
+        errno_t err = fopen_s(&f, fname.c_str(), "wb");
+        if (f == NULL) {
+            cout << "show_file: err opening file " << fname << " code:" << err << endl;
+            return -1;
+        }
+
+        for (it = vec.begin(); it != vec.end(); it++) {
+            fwrite(&*it, sizeof(int32_t), 1, f);
+        }
+
+        fclose(f);
+        return 0;
+    }
+}
+
+/// <summary>
+/// Собирает два отсортированных файла в один
+/// </summary>
+/// <param name="f1name">название первого маленького файла</param>
+/// <param name="f2name">название второго маленького файла</param>
+/// <param name="fresname">название итогового файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int merge_two_files(string f1name, string f2name, string fresname) {
+    FILE* f1;
+    errno_t errf1 = fopen_s(&f1, f1name.c_str(), "rb");
+
+    FILE* f2;
+    errno_t errf2 = fopen_s(&f2, f2name.c_str(), "rb");
+
+    FILE* fres;
+    errno_t errfres = fopen_s(&fres, fresname.c_str(), "wb");
+
+
+    if (f1 == NULL or f2 == NULL or fres == NULL) {
+        cout << "merge_two_files: err opening files"<< f1name << " " << f2name << " " << fresname << " codes:" << errf1 << ":" << errf2 << ":" << errfres << endl;
+        return -1;
+    }
+    int cnt = 0;
+    bool fin = false;
+    int32_t n1, n2;
+    auto s1 = fread(&n1, sizeof(int32_t), 1, f1);
+    auto s2 = fread(&n2, sizeof(int32_t), 1, f2);
+    while (!fin) {
+        if (s1 != 0 and s2 != 0) {
+            if (n1 > n2) {
+                fwrite(&n2, sizeof(int32_t), 1, fres);
+                s2 = fread(&n2, sizeof(int32_t), 1, f2);
+                cnt++;
+            }
+            else if (n1 < n2) {
+                fwrite(&n1, sizeof(int32_t), 1, fres);
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
+            }
+            else if (n1 == n2) {
+                fwrite(&n1, sizeof(int32_t), 1, fres);
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
+            }
+        }
+        else if (s1 == 0 and s2 != 0) {
+            while (s2 != 0) {
+                fwrite(&n2, sizeof(int32_t), 1, fres);
+                s2 = fread(&n2, sizeof(int32_t), 1, f2);
+                cnt++;
+            }
+        }
+        else if (s1 != 0 and s2 == 0){
+            while (s1 != 0) {
+                fwrite(&n1, sizeof(int32_t), 1, fres);
+                s1 = fread(&n1, sizeof(int32_t), 1, f1);
+                cnt++;
+            }
+        }
+        else if (s1 == 0 and s2 == 0) {
+            fin = true;
+            //cout << "merge fin. proccessed " << cnt << " elements" << endl;
+        }
+
+    }
+    fclose(f1);
+    fclose(f2);
+    remove(f1name.c_str());
+    remove(f2name.c_str());
+    fclose(fres);
+    return 0;
+};
+
+/// <summary>
+/// Разбивает большой файл на много маленьких
+/// </summary>
+/// <param name="fname">название большого файла</param>
+/// <returns>int 0 -- success; -1 -- fail
+/// </returns>
+int SplitBigFile(string fname) {
+    FILE* f;
+    errno_t err = fopen_s(&f, fname.c_str(), "rb");
+
+    if (f == NULL) {
+        cout << "SplitBigFile: err opening file " << fname << " code:" << err << endl;
+        return -1;
+    }
+    
+    if (SmallFileSize > BigFileSize) {
+        cout << "SplitBigFile err. SmallFileSize > BigFileSize" << endl;
+    }
+
+    int fcount = int(ceil((float)BigFileSize / (float)SmallFileSize));
+    PartCnt = fcount;
+    int32_t n;
+    auto s1 = fread(&n, sizeof(int32_t), 1, f);
+    while (fcount > 0) {
+        FILE* fcurr;
+        string fcurr_name = fname + "_part_" + to_string(fcount);
+        errno_t err = fopen_s(&fcurr, fcurr_name.c_str(), "wb");
+        if (fcurr == NULL) {
+            cout << "sort: err creating file " << fcurr_name << " code:" << err << endl;
+            return -1;
+        };
+
+        int fcurr_cnt = 0;
+        while (s1 != 0 and fcurr_cnt < SmallFileCount) {
+            fwrite(&n, sizeof(int32_t), 1, fcurr);
+            s1 = fread(&n, sizeof(int32_t), 1, f);
+            fcurr_cnt++;
+        };
+        //cout << fcurr_name << ":wrote " << fcurr_cnt << " entities." << endl;
+
+        fclose(fcurr);
+        fcount--;
+    };
+
+    fclose(f);
+    remove(fname.c_str());
+    return 0;
+}
+
+
+
+//void MultithreadedSorter() {
+//    condition_variable cv;
+//    while (true) {
+//        if (q_count > 0) {
+//
+//            unique_lock<mutex> ul(mtx);
+//            cv.wait(ul, [&] {return q_unlocked; });
+//            q_unlocked = false;
+//            if (q_count > 0)
+//                q_count--;
+//            else {
+//                q_unlocked = true;
+//                ul.unlock();
+//                cv.notify_all();
+//                break;
+//            }
+//            string s = q.front();
+//            q.pop();
+//            ul.unlock();
+//            q_unlocked = true;
+//            cv.notify_all();
+//            cout << s << " is being sorted" << endl;
+//            FileSort(s);
+//            q_sorted.push(s);
+//            q_sorted_count++;
+//            cout << s << " is sorted! " << endl;
+//        }
+//        else
+//        {
+//            cv.notify_all();
+//            break;
+//        }
+//    }
+//}
+
+void MultithreadedSorter() {
+    condition_variable cv;
+    while(true){
+        if (q_count > 0) {
+
+            unique_lock<mutex> ul(mtx);
+            cv.wait(ul, [&] {return q_unlocked; });
+            q_unlocked = false;
+            if (q_count > 0)
+                q_count--;
+            else {
+                q_unlocked = true;
+                ul.unlock();
+                cv.notify_all();
+                break;
+            }
+            string s = q.front();
+            q.pop();
+            ul.unlock();
+            q_unlocked = true;
+            cv.notify_all();
+            cout << s << " is being sorted" << endl;
+            FileSort(s);
+            q_sorted.push(s);
+            q_sorted_count++;
+            cout <<  s << " is sorted! " << endl;
+        }
+        else
+        {
+            cv.notify_all();
+            break;
+        }
+    }
+}
+
+void MultithreadedMerge() {
+    while (true) {
+        //condition_variable(cv);
+        unique_lock <mutex> ul(mtx);
+        cv.wait(ul, [&] {return true; });//false чтобы стоп
+        if (q_sorted.size() == 1 and how_many_working == 0) { /*cout << "thread fin!" << endl;*/ ul.unlock(); cv.notify_all(); break; }//1 файл и все остановлены
+        else if (q_sorted.size() > 1 and q_sorted.size() - how_many_working > 1) { //если в очереди 2 файла и можно ухватить
+            q_sorted_count--;
+            how_many_working++;
+            string s1 = q_sorted.front();
+            q_sorted.pop();
+            string s2 = q_sorted.front();
+            q_sorted.pop();
+            PartCnt++;
+            string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+            ul.unlock();
+            cv.notify_one();
+            merge_two_files(s1, s2, s3);
+            q_sorted.push(s3);
+            q_sorted_count++;      
+            how_many_working--;
+        }
+        else {}
+    }
+
+};
+void remover() {
+
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            remove(entry.path().filename().string().c_str());
+        };
+
+    };
+};
+
+
+int main()
+{
+    setlocale(LC_ALL, "RUS");
+    remover();
+    CreateBigFile(FileNameBase);
+    SplitBigFile(FileNameBase);
+
+    
+    int max_threads = thread::hardware_concurrency();
+    int num_threads = min(max_threads, req_num_treads);
+    cout << "num)_threrasda:" << num_threads << endl;
+    vector<thread> threads(num_threads - 1);
+
+
+    cout << "\n\npcnt:" << PartCnt << endl;
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            //cout << entry.path().filename().string() << endl;
+            q.push(entry.path().filename().string());
+            q_count++;
+        };
+    }
+    
+    //thread t1 = thread(test, q.front());
+    q.pop();
+    FileSort(q.front());
+    show_file(q.front());
+    //this_thread::sleep_for(chrono::milliseconds(1000));
+    //thread t2 = thread(test, q.front());
+    ////многопоточная сортировка файликов
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    cout << "thread " << i << " started" << endl;
+    //    threads[i] = thread(MultithreadedSorter);
+    //};
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    threads[i].join();
+    //};
+    //cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
+
+    ////многопоточный merge файликов
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    cout << "thread " << i << " started" << endl;
+    //    threads[i] = thread(MultithreadedMerge);
+    //};
+
+    //for (int i = 0; i < num_threads - 1; i++) {
+    //    threads[i].join();
+    //};
+
+    //for (const auto& entry : fs::directory_iterator("./")) {
+    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+    //        cout << entry.path().filename().string() << endl;
+    //        show_file(entry.path().filename().string());
+    //    };
+
+    //};
+    
+    return 0;
+}
