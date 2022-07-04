@@ -14,8 +14,8 @@ using namespace std;
 
 //это можно поменять, если хочется
 const int maxN = 1000;                  //макс.значение элементов
-const int SmallFileSize = 1;            //размер маленького файла в МегаБайтах
-const int BigFileSize = 10;             //размер большого файла в МегаБайтах
+const int SmallFileSize = 1;            //размер маленького файла в Килобайтах
+const int BigFileSize = 10;             //размер большого файла в Килобайтах
 const int req_num_treads = 8;          //необходимое колво потоков
 string FileNameBase = "File";           //Основа для названия файлов
 //////////////////////////////////////////////////////////////////////////
@@ -251,7 +251,7 @@ int SplitBigFile(const char* fname) {
             s1 = fread(&n, sizeof(int32_t), 1, f);
             fcurr_cnt++;
         };
-        cout << fcurr_name << ":wrote " << fcurr_cnt << " entities." << endl;
+        //cout << fcurr_name << ":wrote " << fcurr_cnt << " entities." << endl;
 
         fclose(fcurr);
         fcount--;
@@ -334,6 +334,16 @@ void MultithreadedMerge() {
     }
 };
 
+void remover() {
+
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            remove(entry.path().filename().string().c_str());
+        };
+
+    };
+};
+
 int main()
 {
     setlocale(LC_ALL, "RUS");
@@ -364,7 +374,7 @@ int main()
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
-    MultithreadedSorter();
+
     cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
 
     //многопоточный merge файликов
@@ -376,7 +386,7 @@ int main()
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
-    MultithreadedMerge();
+
     for (const auto& entry : fs::directory_iterator("./")) {
         if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
             cout << entry.path().filename().string() << endl;
@@ -384,5 +394,6 @@ int main()
         };
 
     };
+    remover();
     return 0;
 }
