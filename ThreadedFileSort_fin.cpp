@@ -340,50 +340,77 @@ void MultithreadedSorter() {
 //        }
 //    }
 //};
+//void MultithreadedMerge() {
+//    while (true) {
+//        if (q_sorted_locked == false and q_sorted_count > 1)
+//        {
+//            cout << (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)) << endl;
+//            condition_variable cv;
+//            unique_lock <mutex> ul(mtx);
+//            cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
+//            how_many_working++;
+//            q_sorted_locked = true;
+//            cout << "imin" << endl;
+//            q_sorted_count--;
+//            //this_thread::sleep_for(chrono::milliseconds(10));
+//            //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
+//            if (!(q_sorted_count > 1 and (q_sorted_count - how_many_working > 0))) { ul.unlock(); cv.notify_one(); }
+//            else {
+//                string s1 = q_sorted.front();
+//                q_sorted.pop();
+//                string s2 = q_sorted.front();
+//                q_sorted.pop();
+//                PartCnt++;
+//                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+//                q_sorted_locked = false;
+//                ul.unlock();
+//                cv.notify_one();
+//                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
+//                ul.lock();
+//                q_sorted.push(s3.c_str());
+//                ul.unlock();
+//                how_many_working--;
+//            }
+//        }
+//        else if (q_sorted_locked == true and q_sorted_count > 1)
+//        {
+//            this_thread::sleep_for(chrono::milliseconds(10));
+//        }
+//        else if (q_sorted_count == 1)
+//        {
+//
+//            break;
+//        }
+//    }
+//};
+
 void MultithreadedMerge() {
     while (true) {
-        if (q_sorted_locked == false and q_sorted_count > 1)
-        {
-            cout << (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)) << endl;
-            condition_variable cv;
-            unique_lock <mutex> ul(mtx);
-            //cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
-            how_many_working++;
-            q_sorted_locked = true;
-            cout << "imin" << endl;
+        condition_variable(cv);
+        unique_lock <mutex> ul(mtx);
+        cv.wait(ul, [&] {return true; });//false чтобы стоп
+        //cv.wait(ul, [&] {return (how_many_working == 0) or (q_sorted.size() > 1 and q_sorted.size() - how_many_working > 1) or (q_sorted.size() == 1 and how_many_working == 0); });//false чтобы стоп
+        if (q_sorted.size() == 1 and how_many_working == 0) { /*cout << "thread fin!" << endl;*/ ul.unlock(); cv.notify_all(); break; }//1 файл и все остановлены
+        else if (q_sorted.size() > 1 and q_sorted.size() - how_many_working > 1) { //если в очереди 2 файла и можно ухватить
             q_sorted_count--;
-            //this_thread::sleep_for(chrono::milliseconds(10));
-            //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
-            if (!(q_sorted_count > 1 and (q_sorted_count - how_many_working > 0))) { ul.unlock(); cv.notify_one(); }
-            else {
-                string s1 = q_sorted.front();
-                q_sorted.pop();
-                string s2 = q_sorted.front();
-                q_sorted.pop();
-                PartCnt++;
-                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
-                q_sorted_locked = false;
-                ul.unlock();
-                cv.notify_one();
-                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
-                ul.lock();
-                q_sorted.push(s3.c_str());
-                ul.unlock();
-                how_many_working--;
-            }
+            how_many_working++;
+            string s1 = q_sorted.front();
+            q_sorted.pop();
+            string s2 = q_sorted.front();
+            q_sorted.pop();
+            PartCnt++;
+            string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+            ul.unlock();
+            cv.notify_one();
+            merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
+            q_sorted.push(s3.c_str());
+            q_sorted_count++;
+            how_many_working--;
         }
-        else if (q_sorted_locked == true and q_sorted_count > 1)
-        {
-            this_thread::sleep_for(chrono::milliseconds(10));
-        }
-        else if (q_sorted_count == 1)
-        {
-
-            break;
-        }
+        else {}
     }
-};
 
+};
 void remover() {
 
     for (const auto& entry : fs::directory_iterator("./")) {
@@ -407,7 +434,7 @@ int main()
     vector<thread> threads(num_threads - 1);
 
 
-
+    cout << "\n\npcnt:" << PartCnt << endl;
     for (const auto& entry : fs::directory_iterator("./")) {
         if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
             //cout << entry.path().filename().string() << endl;
