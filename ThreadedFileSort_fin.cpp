@@ -23,8 +23,8 @@ using namespace std;
 
 //это можно поменять, если хочется
 const int maxN = 1000;                  //макс.значение элементов
-unsigned long SmallFileSize = 10;            //размер маленького файла в МегаБайтах
-unsigned long BigFileSize = 100;           //размер большого файла в МегаБайтах
+unsigned long SmallFileSize = 1;            //размер маленького файла в МегаБайтах
+unsigned long BigFileSize = 20;           //размер большого файла в МегаБайтах
 const int req_num_threads = 8;          //необходимое колво потоков
 string FileNameBase = "File";           //Основа для названия файлов
 //////////////////////////////////////////////////////////////////////////
@@ -388,7 +388,9 @@ int main()
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
-
+    double t = (double)(clock() - start) / CLOCKS_PER_SEC;
+    cout << "\nTime taken (seconds):\n\t\n\n" << t;
+    system("pause");
     for (const auto& entry : fs::directory_iterator("./")) {
         if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
             //cout << entry.path().filename().string() << endl;
@@ -396,7 +398,6 @@ int main()
         };
     };
 
-    double t = (double)(clock() - start) / CLOCKS_PER_SEC;
-    cout << "\nTime taken (seconds):\n\t\n\n" << t;
+
     return 0;
 }
