@@ -38,6 +38,7 @@ bool q_sorted_locked = false;   //заблокирована ли очередь
 int q_count = 0;                //количество файлов в очереди
 int q_sorted_count = 0;         //количество файлов в сортированной очереди
 
+int how_many_working = 0;
 int PartCnt = 0;
 /////////////////////////////////////////////////////////////////////////
 
@@ -300,27 +301,76 @@ void MultithreadedSorter() {
         }
     }
 }
-
+//void MultithreadedMerge() {
+//    while (true) {
+//        if (q_sorted_locked == false and bool(q_sorted_count - how_many_working) == true)
+//        {
+//            condition_variable cv;
+//            unique_lock<mutex>ul(mtx);
+//            cout << (!q_sorted_locked and bool(q_sorted_count - how_many_working)) << endl;
+//            cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
+//            q_sorted_locked = true;
+//            q_sorted_count--;
+//            how_many_working++;
+//            if ((how_many_working == 0 and q_sorted_count == 1) or q_sorted_count == 0) { cv.notify_one(); break; }
+//            else if (q_sorted_count - how_many_working <= 0) { ul.unlock(); }
+//            else {
+//
+//                //this_thread::sleep_for(chrono::milliseconds(10));
+//                //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
+//                string s1 = q_sorted.front();
+//                q_sorted.pop();
+//                string s2 = q_sorted.front();
+//                q_sorted.pop();
+//                PartCnt++;
+//
+//                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+//                q_sorted_locked = false;
+//                ul.unlock();
+//                cv.notify_one();
+//                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
+//                q_sorted.push(s3.c_str());
+//                how_many_working--;
+//            }
+//        }
+//        else if (q_sorted_count == 1 or q_sorted_count == 0)
+//        {
+//            cv.notify_one();
+//            break;
+//        }
+//    }
+//};
 void MultithreadedMerge() {
     while (true) {
         if (q_sorted_locked == false and q_sorted_count > 1)
         {
-
-            mtx.lock();
+            cout << (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)) << endl;
+            condition_variable cv;
+            unique_lock <mutex> ul(mtx);
+            //cv.wait(ul, [&] {return (!q_sorted_locked and (q_sorted_count - how_many_working <= 0)); });
+            how_many_working++;
             q_sorted_locked = true;
-            this_thread::sleep_for(chrono::milliseconds(10));
-            if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
-            string s1 = q_sorted.front();
-            q_sorted.pop();
-            string s2 = q_sorted.front();
-            q_sorted.pop();
-            PartCnt++;
+            cout << "imin" << endl;
             q_sorted_count--;
-            string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
-            q_sorted_locked = false;
-            mtx.unlock();
-            merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
-            q_sorted.push(s3.c_str());
+            //this_thread::sleep_for(chrono::milliseconds(10));
+            //if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
+            if (!(q_sorted_count > 1 and (q_sorted_count - how_many_working > 0))) { ul.unlock(); cv.notify_one(); }
+            else {
+                string s1 = q_sorted.front();
+                q_sorted.pop();
+                string s2 = q_sorted.front();
+                q_sorted.pop();
+                PartCnt++;
+                string s3 = (string)FileNameBase + "_part_" + to_string(PartCnt);
+                q_sorted_locked = false;
+                ul.unlock();
+                cv.notify_one();
+                merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
+                ul.lock();
+                q_sorted.push(s3.c_str());
+                ul.unlock();
+                how_many_working--;
+            }
         }
         else if (q_sorted_locked == true and q_sorted_count > 1)
         {
@@ -347,7 +397,7 @@ void remover() {
 int main()
 {
     setlocale(LC_ALL, "RUS");
-
+    remover();
     CreateBigFile(FileNameBase.c_str());
     SplitBigFile(FileNameBase.c_str());
 
@@ -394,6 +444,6 @@ int main()
         };
 
     };
-    remover();
+    
     return 0;
 }
