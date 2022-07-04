@@ -308,6 +308,8 @@ void MultithreadedMerge() {
 
             mtx.lock();
             q_sorted_locked = true;
+            this_thread::sleep_for(chrono::milliseconds(10));
+            if (q_sorted_count < 2) { q_sorted_locked = false; mtx.unlock(); break; };
             string s1 = q_sorted.front();
             q_sorted.pop();
             string s2 = q_sorted.front();
@@ -365,24 +367,22 @@ int main()
     MultithreadedSorter();
     cout << "\n\nEverything is sorted!" << endl << "p:"<<PartCnt << endl;
 
-    this_thread::sleep_for(chrono::milliseconds(100));
+    //многопоточный merge файликов
+    for (int i = 0; i < num_threads - 1; i++) {
+        cout << "thread " << i << " started" << endl;
+        threads[i] = thread(MultithreadedMerge);
+    };
 
-    ////многопоточный merge файликов
-    //for (int i = 0; i < num_threads - 1; i++) {
-    //    cout << "thread " << i << " started" << endl;
-    //    threads[i] = thread(MultithreadedMerge);
-    //};
+    for (int i = 0; i < num_threads - 1; i++) {
+        threads[i].join();
+    };
+    MultithreadedMerge();
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            cout << entry.path().filename().string() << endl;
+            show_file(entry.path().filename().string().c_str());
+        };
 
-    //for (int i = 0; i < num_threads - 1; i++) {
-    //    threads[i].join();
-    //};
-
-    //for (const auto& entry : fs::directory_iterator("./")) {
-    //    if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
-    //        cout << entry.path().filename().string() << endl;
-    //        show_file(entry.path().filename().string().c_str());
-    //    };
-
-    //};
+    };
     return 0;
 }
