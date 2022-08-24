@@ -30,8 +30,8 @@ string FileNameBase = "File";           //Основа для названия �
 //////////////////////////////////////////////////////////////////////////
 
 //менять только если нужно поменять размерности файлов (МБ->КБ и т.д.)
-unsigned long long BiGFileCount = (unsigned long long)BigFileSize * 1024 * 1024 / sizeof(int32_t);
-unsigned long long SmallFileCount = (unsigned long long)SmallFileSize * 1024 * 1024 / sizeof(int32_t);
+unsigned long long BiGFileCount = (unsigned long long)BigFileSize * 1024  / sizeof(int32_t);
+unsigned long long SmallFileCount = (unsigned long long)SmallFileSize * 1024  / sizeof(int32_t);
 
 /////////////////////////////////////////////////////////////////////////
 mutex mtx;
@@ -154,7 +154,7 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
     errno_t errfres = fopen_s(&fres, fresname, "wb+");
 
 
-    if (f1 == NULL or f2 == NULL or fres == NULL) {
+    if (f1 == NULL || f2 == NULL || fres == NULL) {
         cout << "merge_two_files: err opening files"<< f1name << " " << f2name << " " << fresname << " codes:" << errf1 << ":" << errf2 << ":" << errfres << endl;
         return -1;
     }
@@ -164,7 +164,7 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
     auto s1 = fread(&n1, sizeof(int32_t), 1, f1);
     auto s2 = fread(&n2, sizeof(int32_t), 1, f2);
     while (!fin) {
-        if (s1 != 0 and s2 != 0) {
+        if (s1 != 0 && s2 != 0) {
             if (n1 > n2) {
                 fwrite(&n2, sizeof(int32_t), 1, fres);
                 s2 = fread(&n2, sizeof(int32_t), 1, f2);
@@ -181,21 +181,21 @@ int merge_two_files(const char* f1name, const char* f2name, const char* fresname
                 cnt++;
             }
         }
-        else if (s1 == 0 and s2 != 0) {
+        else if (s1 == 0 && s2 != 0) {
             while (s2 != 0) {
                 fwrite(&n2, sizeof(int32_t), 1, fres);
                 s2 = fread(&n2, sizeof(int32_t), 1, f2);
                 cnt++;
             }
         }
-        else if (s1 != 0 and s2 == 0){
+        else if (s1 != 0 && s2 == 0){
             while (s1 != 0) {
                 fwrite(&n1, sizeof(int32_t), 1, fres);
                 s1 = fread(&n1, sizeof(int32_t), 1, f1);
                 cnt++;
             }
         }
-        else if (s1 == 0 and s2 == 0) {
+        else if (s1 == 0 && s2 == 0) {
             fin = true;
             //cout << "merge fin. proccessed " << cnt << " elements" << endl;
         }
@@ -256,7 +256,7 @@ int SplitBigFile_multithreaded(string fname) {
         auto s1 = fread(&n, sizeof(int32_t), 1, f);
 
 
-        while (s1 != 0 and fcurr_cnt < SmallFileCount) {
+        while (s1 != 0 && fcurr_cnt < SmallFileCount) {
             fwrite(&n, sizeof(int32_t), 1, fcurr);
             s1 = fread(&n, sizeof(int32_t), 1, f);
             fcurr_cnt++;
@@ -267,6 +267,7 @@ int SplitBigFile_multithreaded(string fname) {
         fclose(fcurr);
     }
 
+    
     fclose(f);
     //remove(fname.c_str());
     return 0;
@@ -288,7 +289,7 @@ void MultithreadedSorter() {
         string s = q.front();
         cout << s << " is being sorted" << endl;
         q.pop();
-        this_thread::sleep_for(chrono::milliseconds(1));
+        //this_thread::sleep_for(chrono::milliseconds(1));
         q_unlocked = true;
         ul.unlock();
         cv.notify_one();
@@ -306,9 +307,9 @@ void MultithreadedMerge() {
         condition_variable cv;
         unique_lock <mutex> ul(mtx);
         cv.wait(ul, [&] {return true; });//false чтобы стоп
-        //cv.wait(ul, [&] {return (how_many_working == 0) or (q_sorted.size() > 1 and q_sorted.size() - how_many_working > 1) or (q_sorted.size() == 1 and how_many_working == 0); });//false чтобы стоп
-        if (q_sorted.size() == 1 and how_many_working == 0) { /*cout << "thread fin!" << endl;*/ ul.unlock(); cv.notify_all(); break; }//1 файл и все остановлены
-        else if (q_sorted.size() > 1 and q_sorted.size() - how_many_working > 1) { //если в очереди 2 файла и можно ухватить
+        //cv.wait(ul, [&] {return (how_many_working == 0) or (q_sorted.size() > 1 && q_sorted.size() - how_many_working > 1) or (q_sorted.size() == 1 && how_many_working == 0); });//false чтобы стоп
+        if (q_sorted.size() == 1 && how_many_working == 0) { /*cout << "thread fin!" << endl;*/ ul.unlock(); cv.notify_all(); break; }//1 файл и все остановлены
+        else if (q_sorted.size() > 1 && q_sorted.size() - how_many_working > 1) { //если в очереди 2 файла и можно ухватить
             q_sorted_count--;
             how_many_working++;
             string s1 = q_sorted.front();
@@ -385,6 +386,7 @@ int main()
         cout << "thread " << i << " started" << endl;
         threads[i] = thread(MultithreadedMerge);
     };
+    
     for (int i = 0; i < num_threads - 1; i++) {
         threads[i].join();
     };
