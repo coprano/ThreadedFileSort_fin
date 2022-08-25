@@ -23,8 +23,8 @@ using namespace std;
 
 //*  это можно поменять, если хочется
 const int maxN = 1000;                  //макс.значение элементов
-unsigned long SmallFileSize = 200;            //размер маленького файла в МегаБайтах
-unsigned long BigFileSize = 4096;           //размер большого файла в МегаБайтах
+unsigned long SmallFileSize = 200;            //размер маленького файла в МегаБайтах (или КБ, если SmallFileCount размер в КБ)
+unsigned long BigFileSize = 4096;           //размер большого файла в МегаБайтах (или КБ, если BigFileCount размер в КБ)
 const int req_num_threads = 2;          //необходимое колво потоков
 string FileNameBase = "File";           //Основа для названия файлов
 
@@ -34,8 +34,8 @@ string FileNameBase = "File";           //Основа для названия �
 //*  менять только если нужно поменять размерности файлов (МБ->КБ и т.д.)
 // * 1024 * 1024 -> МБ
 // * 1024 -> КБ
-unsigned long long BiGFileCount = (unsigned long long)BigFileSize * 1024  / sizeof(int32_t);
-unsigned long long SmallFileCount = (unsigned long long)SmallFileSize * 1024 / sizeof(int32_t);
+unsigned long long BiGFileCount = (unsigned long long)BigFileSize * 1024  * 1024 / sizeof(int32_t);
+unsigned long long SmallFileCount = (unsigned long long)SmallFileSize * 1024 * 1024 / sizeof(int32_t);
 
 /////////////////////////////////////////////////////////////////////////
 mutex mtx;
@@ -206,7 +206,7 @@ int SplitBigFile_multithreaded(string fname) {
 
         unsigned long long offset = sizeof(int32_t) * (how_many_small_files)*SmallFileCount;
         _fseeki64(f, offset, SEEK_SET);
-        cout << how_many_small_files << "; starting pos" << offset << ":real:"<< _ftelli64(f) << endl;
+        // cout << how_many_small_files << "; starting pos" << offset << ":real:"<< _ftelli64(f) << endl;
         how_many_small_files++;
         is_changeable = true;
         ul.unlock();
@@ -216,15 +216,16 @@ int SplitBigFile_multithreaded(string fname) {
         vector <int32_t> vec;
 
         while (s1 != 0 && fcurr_cnt < SmallFileCount) {
-            s1 = fread(&n, sizeof(int32_t), 1, f);
             vec.push_back(n);
+            s1 = fread(&n, sizeof(int32_t), 1, f);
             fcurr_cnt++;
         };
 
-        sort(vec.begin(),vec.end(),greater());
-        for (auto i = vec.begin();i<vec.end();i++){
-            fwrite(&vec.back(), sizeof(int32_t), 1, fcurr);
-            vec.pop_back();
+        sort(vec.begin(),vec.end());
+        for (auto i = 0;i<vec.size();i++){
+            // cout << vec.at(i) << endl;
+            fwrite(&vec.at(i), sizeof(int32_t), 1, fcurr);
+
         };
 
         // cout << fcurr_name << ":WROTE ENTITIES:" << fcurr_cnt <<" " << _ftelli64(f) << endl;
@@ -257,7 +258,7 @@ void MultithreadedMerge() {
             string s3 = (string)FileNameBase + "_part_" + to_string(fcount);
             ul.unlock();
             cv.notify_one();
-            cout << "mrg:" << endl << s1 << endl << s2 << endl << ">" << s3 << endl << endl;
+            // cout << "mrg:" << endl << s1 << endl << s2 << endl << ">" << s3 << endl << endl;
             merge_two_files(s1.c_str(), s2.c_str(), s3.c_str());
             q_sorted.push(s3.c_str());
             how_many_working--;
@@ -319,14 +320,14 @@ int main()
     cout << "\nTime taken (seconds):\n\t\n\n" << t;
 
 
-    // system("pause");
+    system("pause");
 
 
-    // for (const auto& entry : fs::directory_iterator("./")) {
-    //     if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
-    //         show_file(entry.path().filename().string().c_str());
-    //     };
-    // };
+    for (const auto& entry : fs::directory_iterator("./")) {
+        if (entry.path().filename().string().substr(0, ((string)FileNameBase).length() + 6) == (string)FileNameBase + "_part_") {
+            show_file(entry.path().filename().string().c_str());
+        };
+    };
 
 
     return 0;
